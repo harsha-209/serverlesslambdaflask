@@ -16,7 +16,7 @@ resource "aws_lambda_layer_version" "lambda_layer" {
 ################ creating a lambda role ####################
 
 resource "aws_iam_role" "iam_for_lambda" {
-  name = "iam_for_lambda"
+  name = "iam_for_lambda1"
 
   assume_role_policy = <<EOF
 {
@@ -99,48 +99,103 @@ resource "aws_api_gateway_integration" "integration" {
 
 
 
+
+##################### deployment
+
+
+########################################## creating a stage for deploy a lambda or invoke lambda function #####################
+
+
+
+################# permission###########
+
+resource "aws_lambda_permission" "apigw_lambda" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.test_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.example.execution_arn}/*/*/*"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ############################# integration response####################
 resource "aws_api_gateway_method_response" "response_200" {
   rest_api_id = aws_api_gateway_rest_api.example.id
   resource_id = aws_api_gateway_resource.MyDemoResource.id
   http_method = aws_api_gateway_method.MyDemoMethod.http_method
   status_code = "200"
+
 }
+
 
 
 
 ####################### response#################
-
-
-resource "aws_api_gateway_method_response" "example222" {
-    http_method         = aws_api_gateway_method.MyDemoMethod.http_method
+resource "aws_api_gateway_integration_response" "example" {
+    http_method         = "GET"
     resource_id         = aws_api_gateway_resource.MyDemoResource.id
-    rest_api_id         = aws_api_gateway_rest_api.example.id
-    response_models     = {
-        "application/json" = "Empty"
+    response_parameters = {}
+    response_templates  = {
+        "application/json" = ""
     }
-#    response_parameters = {}
+    rest_api_id         = aws_api_gateway_rest_api.example.id
     status_code         = "200"
+    depends_on = [aws_api_gateway_method_response.response_200]
 }
 
+# aws_api_gateway_method_response.example:
+
+/*
+
+#resource "aws_api_gateway_method_response" "new" {
+#    http_method         = "GET"
+#    resource_id         = aws_api_gateway_resource.MyDemoResource.id
+#    response_models     = {
+#        "application/json" = "Empty"
+#    }
+#    response_parameters = {}
+#    rest_api_id         = aws_api_gateway_rest_api.example.id
+#    status_code         = "200"
+#
+
+*/
 
 
 
 
+resource "aws_api_gateway_deployment" "example" {
+  rest_api_id = aws_api_gateway_rest_api.example.id
 
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.example.body))
+  }
 
+  lifecycle {
+    create_before_destroy = true
+  }
+  depends_on = [aws_api_gateway_method.MyDemoMethod]
+}
 
+resource "aws_api_gateway_stage" "example" {
+  deployment_id = aws_api_gateway_deployment.example.id
+  rest_api_id   = aws_api_gateway_rest_api.example.id
+  stage_name    = "example"
 
-
-
-
-
-
-
-
-
-
-############################################ creating a deployment for we need to to create a stage in api #############################
-########################################## creating a stage for deploy a lambda or invoke lambda function #####################
-
+}
 
